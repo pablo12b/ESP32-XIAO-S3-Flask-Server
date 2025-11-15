@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>ESP32 - Parte 1-A & 1-B (Noise & Denoise)</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 12px; background: #f7f7f7; color: #111; }
+    h1 { margin-bottom: 6px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; }
+    .card { background: white; border-radius:8px; padding:10px; box-shadow:0 2px 8px rgba(0,0,0,0.08); }
+    .video { width: 480px; max-width: 100%; }
+    label { display:block; margin-top:8px; font-size:0.9rem; }
+    input[type=range] { width:100%; }
+    .controls { width: 480px; }
+    .container{
+               margin: 0;
+               padding: 0;
+               width: 100%;
+               height: 100vh;
+               background-color: #f1f1bc;
+               color: black;
+               text-align: center;
+          }
+          .containerHeader{
+               display: flex;
+               flex-direction: column;
+               align-items: center;
+          }
+  </style>
+</head>
+<body>
+  <div class="containerHeader">
+    <h1>Video Streaming</h1>
+    <img src="{{ url_for('static', filename='Header.webp') }}" alt="Image header" width="50%">
+  </div>
+  <h1>ESP32 - Procesamiento (Parte 1-A y 1-B)</h1>
+  <p>Se muestran streams separados (original, máscara, foreground) y la sección de ruido con controles interactivos.</p>
+
+  <h2>Parte 1-A — Streams separados</h2>
+  <div class="row">
+    <div class="card">
+      <h3>Original</h3>
+      <img class="video" src="/stream/original" alt="original">
+    </div>
+    <div class="card">
+      <h3>Máscara (fg)</h3>
+      <img class="video" src="/stream/fgmask" alt="mask">
+    </div>
+    <div class="card">
+      <h3>Foreground (filtrado)</h3>
+      <img class="video" src="/stream/filtered" alt="filtered">
+    </div>
+  </div>
+
+  <hr>
+
+  <h2>Parte 1-B — Ruido & Filtros</h2>
+  <div style="display:flex; gap:16px; flex-wrap:wrap;">
+    <div class="card controls">
+      <h3>Controles de Ruido</h3>
+
+      <label>Porcentaje de pixeles afectados: <span id="p_percent">100</span>%</label>
+      <input id="noise_percent" type="range" min="0" max="100" value="100">
+
+      <label>Ngauss (media): <span id="p_mean">0.0</span></label>
+      <input id="gaussian_mean" type="range" min="-50" max="50" step="0.1" value="0.0">
+
+      <label>Sigma (Gaussian): <span id="p_sigma">20.0</span></label>
+      <input id="gaussian_sigma" type="range" min="0" max="100" step="0.5" value="20.0">
+
+      <label>Speckle var: <span id="p_speckle">0.02</span></label>
+      <input id="speckle_var" type="range" min="0" max="0.2" step="0.001" value="0.02">
+
+      <label>Kernel filtro (odd): <span id="p_kernel">3</span></label>
+      <input id="filter_kernel_size" type="range" min="3" max="11" step="2" value="3">
+
+      <label><input id="apply_gaussian" type="checkbox" checked> Aplicar Gaussian noise</label>
+      <label><input id="apply_speckle" type="checkbox"> Aplicar Speckle noise</label>
+
+      <div style="margin-top:10px;">
+        <button id="apply_btn">Aplicar parámetros</button>
+        <button id="reset_btn">Reset parámetros</button>
+      </div>
+
+      <p style="font-size:0.85rem; color:#444; margin-top:8px;">
+        Nota: los cambios se aplican en el servidor y se verán reflejados en los streams de abajo.
+      </p>
+    </div>
+
+    <div style="flex:1; min-width:320px;">
+      <div class="row" style="margin-bottom:8px;">
+        <div class="card"><h4>Noisy (ruidoso)</h4><img class="video" src="/stream/noisy"></div>
+        <div class="card"><h4>Denoised - Median</h4><img class="video" src="/stream/denoised_median"></div>
+      </div>
+      <div class="row">
+        <div class="card"><h4>Denoised - Blur</h4><img class="video" src="/stream/denoised_blur"></div>
+        <div class="card"><h4>Denoised - PyTorch Gaussian</h4><img class="video" src="/stream/denoised_gauss_torch"></div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Detección de bordes — comparación</h3>
+  <div class="row">
+    <div class="card"><h4>Canny (no suavizado)</h4><img class="video" src="/stream/edges_canny"></div>
+    <div class="card"><h4>Canny (suavizado)</h4><img class="video" src="/stream/edges_canny_smoothed"></div>
+    <div class="card"><h4>Sobel (no suavizado)</h4><img class="video" src="/stream/edges_sobel"></div>
+    <div class="card"><h4>Sobel (suavizado)</h4><img class="video" src="/stream/edges_sobel_smoothed"></div>
+  </div>
+
+<script>
+  // Inicializar control values display
+  const el = (id)=>document.getElementById(id)
+  const syncDisplays = () => {
+    el('p_percent').innerText = el('noise_percent').value
+    el('p_mean').innerText = el('gaussian_mean').value
+    el('p_sigma').innerText = el('gaussian_sigma').value
+    el('p_speckle').innerText = el('speckle_var').value
+    el('p_kernel').innerText = el('filter_kernel_size').value
+  }
+  ['noise_percent','gaussian_mean','gaussian_sigma','speckle_var','filter_kernel_size'].forEach(id=>{
+    el(id).addEventListener('input', syncDisplays)
+  })
+  syncDisplays()
+
+  function gatherParams(){
+    return {
+      noise_percent: parseFloat(el('noise_percent').value),
+      gaussian_mean: parseFloat(el('gaussian_mean').value),
+      gaussian_sigma: parseFloat(el('gaussian_sigma').value),
+      speckle_var: parseFloat(el('speckle_var').value),
+      filter_kernel_size: parseInt(el('filter_kernel_size').value),
+      apply_speckle: el('apply_speckle').checked,
+      apply_gaussian: el('apply_gaussian').checked
+    }
+  }
+
+  el('apply_btn').addEventListener('click', async ()=>{
+    const params = gatherParams()
+    const resp = await fetch('/update_noise', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(params)
+    })
+    const data = await resp.json()
+    console.log('update result', data)
+    alert('Parámetros actualizados en servidor.')
+  })
+
+  el('reset_btn').addEventListener('click', async ()=>{
+    // valores por defecto
+    el('noise_percent').value = 100
+    el('gaussian_mean').value = 0.0
+    el('gaussian_sigma').value = 20.0
+    el('speckle_var').value = 0.02
+    el('filter_kernel_size').value = 3
+    el('apply_gaussian').checked = true
+    el('apply_speckle').checked = false
+    syncDisplays()
+    await el('apply_btn').click()
+  })
+
+  // Intentar inicializar con params del servidor
+  (async ()=>{
+    try {
+      let r = await fetch('/get_noise_params')
+      let j = await r.json()
+      el('noise_percent').value = j.noise_percent
+      el('gaussian_mean').value = j.gaussian_mean
+      el('gaussian_sigma').value = j.gaussian_sigma
+      el('speckle_var').value = j.speckle_var
+      el('filter_kernel_size').value = j.filter_kernel_size
+      el('apply_speckle').checked = j.apply_speckle
+      el('apply_gaussian').checked = j.apply_gaussian
+      syncDisplays()
+    } catch(e){ console.log('no se pudo obtener params iniciales', e) }
+  })()
+</script>
+</body>
+</html>

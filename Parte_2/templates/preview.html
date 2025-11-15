@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Preview — {{ img_name }}</title>
+<style>
+  body{font-family:Arial, sans-serif;margin:14px;background:#f7f9fb;}
+  .grid{display:flex;gap:12px;flex-wrap:wrap;}
+  .card{background:white;padding:10px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.06);}
+  img{max-width:640px;border-radius:6px;}
+  a{color:#1976d2;text-decoration:none;}
+</style>
+</head>
+<body>
+  <div class="containerHeader">
+    <h1>Video Streaming</h1>
+    <img src="{{ url_for('static', filename='Header.webp') }}" alt="Image header" width="50%">
+  </div>
+  <h2>Comparación morfológica — {{ img_name }}</h2>
+  <p><a href="/">← Volver</a></p>
+  <div class="grid">
+    {% for k, url in previews %}
+      <div class="card">
+        <h4>Kernel {{ k }} x {{ k }}</h4>
+        <img src="{{ url }}" alt="collage k={{k}}">
+        <p><a href="{{ url }}" target="_blank">Abrir sólo esta imagen</a></p>
+      </div>
+    {% endfor %}
+  </div>
+</body>
+</html>

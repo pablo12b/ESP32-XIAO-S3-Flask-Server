@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Parte 2 — Morfología en imágenes médicas</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 14px; background:#f4f6f8; color:#111;}
+    .card { background:white; padding:12px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.06); margin-bottom:12px;}
+    .row { display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; }
+    img.preview { max-width: 100%; border-radius:6px; box-shadow: 0 1px 6px rgba(0,0,0,0.08); }
+    select { padding:6px; font-size:14px; }
+    a.button { display:inline-block; padding:8px 12px; background:#1976d2; color:white; border-radius:6px; text-decoration:none; margin-left:8px;}
+  </style>
+</head>
+<body>
+  <div class="containerHeader">
+    <h1>Video Streaming</h1>
+    <img src="{{ url_for('static', filename='Header.webp') }}" alt="Image header" width="50%">
+  </div>
+  <h1>Operaciones morfológicas — Imágenes médicas (Parte 2)</h1>
+  <div class="card">
+    <p>Selecciona una imagen médica (debes tener 3 imágenes en <code>static/medical/</code>) y pulsa "Generar vistas" para ver collages con los distintos tamaños de máscara.</p>
+    <div class="row">
+      <select id="imgsel">
+        {% for im in images %}
+          <option value="{{im}}">{{im}}</option>
+        {% endfor %}
+      </select>
+      <a id="btn" class="button" href="#" onclick="go()">Generar vistas</a>
+    </div>
+    <p style="margin-top:8px; color:#444; font-size:0.9rem;">
+      Kernels por defecto: {{ kernels }} (puedes cambiarlos en el código si quieres probar otros tamaños).
+    </p>
+  </div>
+
+  <div id="results"></div>
+
+<script>
+  function go(){
+    const sel = document.getElementById('imgsel');
+    if(!sel || !sel.value) { alert('Selecciona una imagen'); return; }
+    const img = sel.value;
+    // Navegar a la página de preview
+    window.location.href = `/process_preview?img=${encodeURIComponent(img)}`;
+  }
+</script>
+</body>
+</html>
